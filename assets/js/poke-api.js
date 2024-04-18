@@ -1,80 +1,38 @@
-const pokemonData = JSON.parse(sessionStorage.getItem('pokemon'));
-//Pokemon object
-const pokemonProfile = new Pokemon(pokemonData.number, pokemonData.name, pokemonData.photo)
-pokemonProfile.types = pokemonData.types
-
-//API function
 const pokeApi = {}
 
-function getGenderPercentages(gender_rate) {
-    switch (gender_rate) {
-        case -1:
-            return { male: 0, female: 0, genderless: 100 };
-        case 0:
-            return { male: 100, female: 0 };
-        case 1:
-            return { male: 87.5, female: 12.5 };
-        case 2:
-            return { male: 75, female: 25 };
-        case 3:
-            return { male: 62.5, female: 37.5 };
-        case 4:
-            return { male: 50, female: 50 };
-        case 5:
-            return { male: 37.5, female: 62.5 };
-        case 6:
-            return { male: 25, female: 75 };
-        case 7:
-            return { male: 12.5, female: 87.5 };
-        case 8:
-            return { male: 0, female: 100 };
-        default:
-            throw new Error("Invalid gender_rate value");
-    }
+
+function createPokemon(pokemonAPI) {
+    const pokemon = new Pokemon(pokemonAPI.id, pokemonAPI.name, pokemonAPI.sprites.other['official-artwork'].front_default, pokemonAPI.types)
+    pokemon.types = pokemon.convertTypesToList(pokemonAPI.types)
+    return pokemon
 }
 
-function convertpokeApiGender(pokeSpecie, pokemonProfile){
-    pokemonProfile.gender = getGenderPercentages(pokeSpecie.gender_rate)
-    pokemonProfile.eggGroups = pokemonProfile.convertEggGroupsToList(pokeSpecie.egg_groups)
-    pokemonProfile.eggCycle = pokeSpecie.hatch_counter * 255
-
-    return pokemonProfile
+goToProfile = (number, name, photo, notArrayTypes) => {
+    const types = notArrayTypes.split(',');
+    const pokemon = {number, name, photo, types}
+    sessionStorage.setItem('pokemon', JSON.stringify(pokemon));
+    window.location.href = "pokemon-profile.html"
 }
 
-pokeApi.getPokeGender = (pokemonProfile) => {
-    const url = `https://pokeapi.co/api/v2/pokemon-species/${pokemonData.number}/`
+
+pokeApi.getPokemonDetail = (pokemon) => 
+    fetch(pokemon.url)
+        .then((pokemonList) => pokemonList.json())
+        .then(createPokemon)
+
+        
+pokeApi.getPokemons = (offset = 0, limit = 16) => {
+    const url =`https://pokeapi.co/api/v2/pokemon?offset=${offset}&limit=${limit}'`
 
     return fetch(url)
+        // método que pede uma resposta da API
         .then((response) => response.json())
-        .then((jsonBody) => convertpokeApiGender(jsonBody, pokemonProfile))
-}
-
-pokeApi.getPokemonGeneral = () => {
-    const url =`https://pokeapi.co/api/v2/pokemon/${pokemonData.number}/`
-
-    return fetch(url)
-        .then((response) => response.json())
-        .then((pokemonSelected) => {
-            pokemonProfile.weight = pokemonSelected.weight
-            pokemonProfile.height = pokemonSelected.height
-            pokemonProfile.abilities = pokemonProfile.convertAbilitiesToList(pokemonSelected.abilities)
-            return pokemonProfile})
-        .then((pokemonProfile) => pokeApi.getPokeGender(pokemonProfile))
+        // o then pode ser usado em cadeia, e seu parâmetro será agora a resposta final da cadeia de cima
+        .then((jsonBody) => jsonBody.results)
+        .then((pokemons) => pokemons.map(pokeApi.getPokemonDetail))
+        .then((pokemonsDetail) => Promise.all(pokemonsDetail))
+            //método que verifica erro
         .catch((error) => {
-            console.error('Erro:', error)
-    })
-}
-
-pokeApi.getPokemonStats = () => {
-    const url =`https://pokeapi.co/api/v2/pokemon/${pokemonData.number}/`
-
-    return fetch(url)
-        .then((response) => response.json())
-        .then((pokemonSelected) => {
-            pokemonProfile.stats = pokemonProfile.convertStatsToList(pokemonSelected.stats)
-            console.log(pokemonProfile)
-            return pokemonProfile})
-        .catch((error) => {
-            console.error('Erro:', error)
-    })
+            console.error('Erro:', error);
+    });
 }
